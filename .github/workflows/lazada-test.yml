@@ -2,6 +2,13 @@ name: Lazada GitHub test
 
 on:
   workflow_dispatch:
+    inputs:
+      gap:
+        description: "Seconds between checks"
+        default: "90"
+      rounds:
+        description: "Number of checks (90s x 200 = 5 hours)"
+        default: "3"
 
 permissions:
   contents: read
@@ -9,7 +16,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -24,4 +31,7 @@ jobs:
           sudo apt-get install -y xvfb
 
       - name: Run test
+        env:
+          GAP: ${{ inputs.gap }}
+          ROUNDS: ${{ inputs.rounds }}
         run: xvfb-run -a python lazada_gh_test.py

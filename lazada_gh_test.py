@@ -22,6 +22,7 @@ LIST_URL = (f"https://www.lazada.sg/{STORE}/?ajax=true&from=wangpu&langFlag=en"
 BLOCK_SIGNS = ("punish", "x5secdata", "captcha", "rgv587", "baxia",
                "fail_sys_user_validate")
 
+LAST_ITEMS = []
 ROUNDS = int(os.getenv("ROUNDS", "3"))
 GAP = int(os.getenv("GAP", "90"))  # seconds between rounds
 
@@ -53,6 +54,8 @@ def check(page):
         items = (data.get("mods") or {}).get("listItems") or []
 
     if items:
+        global LAST_ITEMS
+        LAST_ITEMS = items
         in_stock = sum(1 for i in items if i.get("inStock"))
         return "OK", f"{len(items)} products listed, {in_stock} in stock"
     if any(sign in low for sign in BLOCK_SIGNS):
@@ -119,6 +122,21 @@ def main():
             f.write("| Round | Time (SGT) | Result | Detail |\n|---|---|---|---|\n")
             for n, stamp, status, detail in results:
                 f.write(f"| {n} | {stamp} | {status} | {detail.replace('|', '/')} |\n")
+            if LAST_ITEMS:
+                f.write("\n### Products seen (last OK round)\n\n")
+                f.write("| Stock | Price | Card product? | Name |\n|---|---|---|---|\n")
+                for i in sorted(LAST_ITEMS, key=lambda x: not x.get("inStock")):
+                    name = str(i.get("name", "?")).replace("|", "/")[:90]
+                    card = "yes" if "trading card game" in name.lower() else "no"
+                    stock = "🟢 in stock" if i.get("inStock") else "❌ sold out"
+                    price = i.get("priceShow") or i.get("price") or "?"
+                    f.write(f"| {stock} | {price} | {card} | {name} |\n")
+
+    if LAST_ITEMS:
+        print("\nIn-stock products:")
+        for i in LAST_ITEMS:
+            if i.get("inStock"):
+                print(f"  🟢 {i.get('priceShow') or i.get('price')}  {i.get('name')}")
 
 
 if __name__ == "__main__":

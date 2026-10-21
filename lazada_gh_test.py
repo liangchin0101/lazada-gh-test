@@ -38,12 +38,25 @@ def public_ip():
 def check(page):
     try:
         resp = page.goto(LIST_URL, wait_until="domcontentloaded", timeout=45000)
-        body = resp.text() if resp else ""
         status = resp.status if resp else "none"
     except Exception as e:
         return "ERROR", f"page load failed: {str(e)[:150]}"
 
-    low = body.lower()
+    # If Lazada redirected us (e.g. to a captcha page), the original reply
+    # is gone, so read whatever page we ended up on instead.
+    try:
+        body = resp.text() if resp else ""
+    except Exception:
+        time.sleep(3)
+        try:
+            body = page.content()
+        except Exception:
+            body = ""
+    final_url = page.url
+    if final_url.split("?")[0] != LIST_URL.split("?")[0]:
+        status = f"{status}, redirected to {final_url[:80]}"
+
+    low = (body + " " + final_url).lower()
     try:
         data = json.loads(body)
     except ValueError:
@@ -100,12 +113,15 @@ def main():
         browser.close()
 
     ok = sum(1 for r in results if r[2] == "OK")
+    blocked = sum(1 for r in results if r[2] == "BLOCKED")
     if ok == len(results):
-        verdict = "✅ PASSED - GitHub can read the Lazada store (run it a few more times to be sure)"
+        verdict = f"✅ PASSED - {ok}/{len(results)} checks OK"
+    elif ok == 0 and blocked:
+        verdict = f"❌ BLOCKED - 0/{len(results)} OK, {blocked} captcha/anti-bot pages"
     elif ok == 0:
-        verdict = "❌ BLOCKED - GitHub's servers can't read Lazada; use the home mini PC"
+        verdict = f"❓ UNCLEAR - 0/{len(results)} OK, only errors (see Detail column)"
     else:
-        verdict = "⚠️ MIXED - some rounds blocked; not reliable enough"
+        verdict = f"⚠️ MIXED - {ok}/{len(results)} OK, {blocked} blocked, {len(results) - ok - blocked} errors"
 
     print("\n===== GITHUB LAZADA TEST SUMMARY =====")
     print(f"IP: {ip}")
